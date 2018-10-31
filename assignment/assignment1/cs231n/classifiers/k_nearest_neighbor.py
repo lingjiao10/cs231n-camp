@@ -71,7 +71,12 @@ class KNearestNeighbor(object):
         # training point, and store the result in dists[i, j]. You should   #
         # not use a loop over dimension.                                    #
         #####################################################################
-        pass
+        dists[i, j] = np.sqrt(np.sum((X[i] - self.X_train[j])** 2))
+        #diff = X[i] - self.X_train[j]  # (x1-y1, x2-y2, ... xd-yd)
+        #diff_2 = diff ** 2  # ((x1-y1)^2, (x2-y2)^2, ... (xd-yd)^2)
+        #d = np.sqrt(np.sum(diff_2))  # sqrt((x1-y1)^2 + (x2-y2)^2 + ... (xd-yd)^2)
+        #dists[i, j] = d
+        
         #####################################################################
         #                       END OF YOUR CODE                            #
         #####################################################################
@@ -93,7 +98,8 @@ class KNearestNeighbor(object):
       # Compute the l2 distance between the ith test point and all training #
       # points, and store the result in dists[i, :].                        #
       #######################################################################
-      pass
+      temp = (X[i] - self.X_train) ** 2 #use broadcasting
+      dists[i,:] = np.sqrt(np.sum(temp,1)).T #一行数据，需要转置
       #######################################################################
       #                         END OF YOUR CODE                            #
       #######################################################################
@@ -121,8 +127,17 @@ class KNearestNeighbor(object):
     # HINT: Try to formulate the l2 distance using matrix multiplication    #
     #       and two broadcast sums.                                         #
     #########################################################################
-    pass
-    #########################################################################
+#     temp = np.broadcast_to(X, (5000,500,3072))# - self.X_train
+#     print(temp)
+#     (x-y)^2 = x^2+y^2-2xy
+    # (x1 - y1)^2 + (x2 - y2)^2 = (x1^2 + x2^2) + (y1^2 + y2^2) - 2*(x1*y1 + x2*y2)
+    train_sq = np.sum(self.X_train ** 2, axis=1, keepdims=True)  # (m, 1), 注意 keepdims 的含义
+    train_sq = np.broadcast_to(train_sq, shape=(num_train, num_test)).T  # (n, m), 注意转置
+    test_sq = np.sum(X ** 2, axis=1, keepdims=True)  # (n, 1)
+    test_sq = np.broadcast_to(test_sq, shape=(num_test, num_train))  # (n, m)
+    cross = np.dot(X, self.X_train.T)  # (n, m)
+    dists = np.sqrt(train_sq + test_sq - 2 * cross)  # 开根号
+    ### ######################################################################
     #                         END OF YOUR CODE                              #
     #########################################################################
     return dists
@@ -142,6 +157,7 @@ class KNearestNeighbor(object):
     """
     num_test = dists.shape[0]
     y_pred = np.zeros(num_test)
+    yy_pred = np.zeros(num_test)
     for i in range(num_test):
       # A list of length k storing the labels of the k nearest neighbors to
       # the ith test point.
@@ -153,7 +169,9 @@ class KNearestNeighbor(object):
       # neighbors. Store these labels in closest_y.                           #
       # Hint: Look up the function numpy.argsort.                             #
       #########################################################################
-      pass
+      index = np.argsort(dists[i])
+      index_k = index[:k]
+      closest_y = self.y_train[index_k]
       #########################################################################
       # TODO:                                                                 #
       # Now that you have found the labels of the k nearest neighbors, you    #
@@ -161,10 +179,31 @@ class KNearestNeighbor(object):
       # Store this label in y_pred[i]. Break ties by choosing the smaller     #
       # label.                                                                #
       #########################################################################
-      pass
+      label_count = np.zeros(k)
+      for m in range(k):
+            for n in range(m+1,k):
+                if closest_y[m] == closest_y[n]:
+                    label_count[m]+=1
+      
+      max_idx = np.argmax(label_count)
+      yy_pred[i] = closest_y[max_idx]
+      
+      # 查看 np.unique 函数
+      #unique函数对唯一值进行了排序，因此最后取得的出现次数最多的元素并不是距离最近的,而是
+      #编码最小的，应该换unique_indices的结果取第一个出现次数最多的元素
+      y_unique, y_count = np.unique(closest_y, return_counts=True)
+      # 第一个是去掉closest_y中的重复元素，第二个是剩下的元素出现的次数
+      common_idx = np.argmax(y_count)  # 出现次数最多的位置
+      y_pred[i] = y_unique[common_idx]  # 取最大出现次数的label作为预测
+    
+      # 打印两种评价结果不符合的预测值
+#       if i==0:
+#         print("索引，最邻近的前k个元素，用unique函数，自己算出现次数")
+#       if yy_pred[i]!=y_pred[i]:        
+#         print(i, closest_y, yy_pred[i], y_pred[i])
       #########################################################################
       #                           END OF YOUR CODE                            # 
       #########################################################################
 
-    return y_pred
+    return yy_pred
 
